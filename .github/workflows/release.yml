@@ -37,23 +37,23 @@ jobs:
         with:
           node-version: 16
 
-      # - name: Cache node_modules
-      #   id: cache-node-modules
-      #   uses: actions/cache@v2
-      #   with:
-      #     path: node_modules
-      #     key: ${{ runner.os }}-${{ hashFiles('package-json.lock') }}-node-modules
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package-json.lock') }}-node-modules
 
       - name: Install build-tools
-        run: npm install -g ./build-tools
+        run: npm install ./build-tools
 
       - uses: sinoru/actions-setup-xcode@v2
         with:
           xcode-version: "12.4"
 
       - name: Install dependencies
-        run: xcodebuild -version
+        run: xcode-select -p
 
       - name: e Init
         run: |
-          e init release -i release --root=electron --fork xltan/electron
+          npx e init release -i release --root=electron --fork xltan/electron
