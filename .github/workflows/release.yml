@@ -28,12 +28,6 @@ jobs:
           repository: xltan/build-tools
           path: build-tools
 
-      - uses: actions/checkout@v3
-        with:
-          repository: xltan/electron
-          path: electron/src/electron
-          ref: v16.2.3
-
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -46,17 +40,32 @@ jobs:
         with:
           xcode-version: "12.4"
 
-      - name: Install dependencies
-        run: xcode-select -p
-
       - name: e Init
         run: |
           npx e init release -i release --root=electron --fork xltan/electron --force
 
-      - name: e Sync
+      - name: Cache electron-src
+        id: cache-electron-src
+        uses: actions/cache@v2
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: v16.2.3
+
+      - name: Sync
         run: |
           npx e sync
 
-      - name: e Init
+      - name: Checking directory
+        working-directory: electron/src/electron
         run: |
-          npx e build
+          git status
+
+      # - name: Build
+      #   run: |
+      #     npx e build
