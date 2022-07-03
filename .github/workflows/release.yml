@@ -52,3 +52,11 @@ jobs:
       - name: e Init
         run: |
           npx e init release -i release --root=electron --fork xltan/electron --force
+
+      - name: e Sync
+        run: |
+          npx e sync
+
+      - name: e Init
+        run: |
+          npx e build
