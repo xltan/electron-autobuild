@@ -21,32 +21,28 @@ jobs:
         shell: bash
 
     steps:
-      # - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      # - uses: actions/checkout@v3
-      #   with:
-      #     repository: xltan/build-tools
-      #     path: build-tools
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: 16
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
-      # - name: Install build-tools
-      #   run: npm install
+      - name: Install build-tools
+        run: npm install
 
-      # - uses: sinoru/actions-setup-xcode@v2
-      #   with:
-      #     xcode-version: "12.4"
+      - uses: sinoru/actions-setup-xcode@v2
+        with:
+          xcode-version: "12.4"
 
-      # - name: Init
-      #   run: |
-      #     npx e init release -i release --root=electron --fork xltan/electron --force
-
-      - name: Test
+      - name: Init
         run: |
-          mkdir electron
+          npx e init release -i release --root=electron --fork xltan/electron --force
 
       - name: Cache electron
         id: cache-electron
@@ -55,33 +51,29 @@ jobs:
           path: electron
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
 
-      - name: Test
-        working-directory: electron
-        run: touch 123 & pid=$! ; sleep 1s && kill $pid || true
+      - uses: actions/checkout@v3
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: v18.3.5
+          fetch-depth: 0
 
-      # - uses: actions/checkout@v3
-      #   if: steps.cache-electron.outputs.cache-hit != 'true'
-      #   with:
-      #     repository: xltan/electron
-      #     path: electron/src/electron
-      #     ref: v18.3.5
-      #     fetch-depth: 0
+      - name: Apply patches
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src/electron
+        run: |
+          git cherry-pick origin/custom-electron
 
-      # - name: Apply patches
-      #   if: steps.cache-electron.outputs.cache-hit != 'true'
-      #   working-directory: electron/src/electron
-      #   run: |
-      #     git cherry-pick origin/custom-electron
+      - name: Sync
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e sync
 
-      # - name: Sync
-      #   if: steps.cache-electron.outputs.cache-hit != 'true'
-      #   run: |
-      #     npx e sync
-
-      # - name: Build
-      #   if: steps.cache-electron.outputs.cache-hit != 'true'
-      #   run: |
-      #     npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
+      - name: Build
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
 
   build2:
     strategy:
@@ -102,28 +94,28 @@ jobs:
         shell: bash
 
     steps:
-      # - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      # - uses: actions/checkout@v3
-      #   with:
-      #     repository: xltan/build-tools
-      #     path: build-tools
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: 16
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
-      # - name: Install build-tools
-      #   run: npm install
+      - name: Install build-tools
+        run: npm install
 
-      # - uses: sinoru/actions-setup-xcode@v2
-      #   with:
-      #     xcode-version: "12.4"
+      - uses: sinoru/actions-setup-xcode@v2
+        with:
+          xcode-version: "12.4"
 
-      # - name: Init
-      #   run: |
-      #     npx e init release -i release --root=electron --fork xltan/electron --force
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --fork xltan/electron --force
 
       - name: Cache electron 2
         id: cache-electron-2
@@ -139,14 +131,9 @@ jobs:
           path: electron
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
 
-      - name: Test
-        working-directory: electron
+      - name: Build
         run: |
-          touch 456 & pid=$! ; sleep 1s && kill $pid || true
-          ls
-      # - name: Build
-      #   run: |
-      #     npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
+          npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
 
   build3:
     strategy:
@@ -167,28 +154,28 @@ jobs:
         shell: bash
 
     steps:
-      # - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      # - uses: actions/checkout@v3
-      #   with:
-      #     repository: xltan/build-tools
-      #     path: build-tools
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: 16
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
-      # - name: Install build-tools
-      #   run: npm install
+      - name: Install build-tools
+        run: npm install
 
-      # - uses: sinoru/actions-setup-xcode@v2
-      #   with:
-      #     xcode-version: "12.4"
+      - uses: sinoru/actions-setup-xcode@v2
+        with:
+          xcode-version: "12.4"
 
-      # - name: Init
-      #   run: |
-      #     npx e init release -i release --root=electron --fork xltan/electron --force
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --fork xltan/electron --force
 
       - name: Cache electron 2
         id: cache-electron-2
@@ -197,9 +184,6 @@ jobs:
           path: electron
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
 
-      - name: Test
-        working-directory: electron
-        run: ls
-      # - name: Build
-      #   run: |
-      #     npx e build electron:symbols
+      - name: Build
+        run: |
+          npx e build electron:symbols
