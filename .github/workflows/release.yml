@@ -44,6 +44,10 @@ jobs:
       #   run: |
       #     npx e init release -i release --root=electron --fork xltan/electron --force
 
+      - name: Test
+        run: |
+          mkdir electron
+
       - name: Cache electron
         id: cache-electron
         uses: actions/cache@v3
