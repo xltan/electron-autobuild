@@ -56,6 +56,7 @@ jobs:
           repository: xltan/electron
           path: electron/src/electron
           ref: v18.2.3
+          fetch-depth: 0
 
       - name: Checking directory
         working-directory: electron/src/electron
@@ -68,4 +69,4 @@ jobs:
 
       - name: Build
         run: |
-          npx e build
+          npx e build electron:symbols
