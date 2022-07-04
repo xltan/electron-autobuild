@@ -55,12 +55,12 @@ jobs:
         with:
           repository: xltan/electron
           path: electron/src/electron
-          ref: v16.2.3
+          ref: v18.2.3
 
       - name: Checking directory
         working-directory: electron/src/electron
         run: |
-          git checkout v18.2.3
+          git cherry-pick custom-electron
 
       # - name: Sync
       #   run: |
