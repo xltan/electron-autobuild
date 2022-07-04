@@ -53,7 +53,7 @@ jobs:
 
       - name: Test
         working-directory: electron
-        run: timeout 1s touch 123 || true
+        run: touch 123 & pid=$! ; sleep 1s && kill $pid || true
 
       # - uses: actions/checkout@v3
       #   if: steps.cache-electron.outputs.cache-hit != 'true'
@@ -77,7 +77,7 @@ jobs:
       # - name: Build
       #   if: steps.cache-electron.outputs.cache-hit != 'true'
       #   run: |
-      #     timeout 4h npx e build electron:symbols || true
+      #     npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
 
   build2:
     strategy:
@@ -138,11 +138,11 @@ jobs:
       - name: Test
         working-directory: electron
         run: |
-          timeout 1s touch 456 || true
+          touch 123 & pid=$! ; sleep 1s && kill $pid || true
           ls
       # - name: Build
       #   run: |
-      #     timeout 4h npx e build electron:symbols || true
+      #     npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
 
   build3:
     strategy:
