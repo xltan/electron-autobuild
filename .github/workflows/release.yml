@@ -4,7 +4,7 @@ on:
   push:
 
 jobs:
-  build:
+  build1:
     strategy:
       fail-fast: true
       matrix:
@@ -44,29 +44,158 @@ jobs:
         run: |
           npx e init release -i release --root=electron --fork xltan/electron --force
 
-      - name: Cache electron-src
-        id: cache-electron-src
-        uses: actions/cache@v2
+      - name: Cache electron
+        id: cache-electron
+        uses: actions/cache@v3
         with:
           path: electron
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+
+      - name: Test
+        working-directory: electron
+        run: timeout 1s touch 123 || true
+
+      # - uses: actions/checkout@v3
+      #   if: steps.cache-electron.outputs.cache-hit != 'true'
+      #   with:
+      #     repository: xltan/electron
+      #     path: electron/src/electron
+      #     ref: v18.3.5
+      #     fetch-depth: 0
+
+      # - name: Apply patches
+      #   if: steps.cache-electron.outputs.cache-hit != 'true'
+      #   working-directory: electron/src/electron
+      #   run: |
+      #     git cherry-pick origin/custom-electron
+
+      # - name: Sync
+      #   if: steps.cache-electron.outputs.cache-hit != 'true'
+      #   run: |
+      #     npx e sync
+
+      # - name: Build
+      #   if: steps.cache-electron.outputs.cache-hit != 'true'
+      #   run: |
+      #     timeout 4h npx e build electron:symbols || true
+
+  build2:
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-latest
+            name: "darwin-x64"
+          # - host: windows-latest
+          #   name: "win32-ia32"
+
+    name: stable - ${{ matrix.settings.name }} - node@16
+    needs:
+      - build1
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
 
       - uses: actions/checkout@v3
         with:
-          repository: xltan/electron
-          path: electron/src/electron
-          ref: v18.3.5
-          fetch-depth: 0
+          repository: xltan/build-tools
+          path: build-tools
 
-      - name: Apply patches
-        working-directory: electron/src/electron
-        run: |
-          git cherry-pick origin/custom-electron
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
-      - name: Sync
-        run: |
-          npx e sync
+      - name: Install build-tools
+        run: npm install
 
-      - name: Build
+      - uses: sinoru/actions-setup-xcode@v2
+        with:
+          xcode-version: "12.4"
+
+      - name: Init
         run: |
-          npx e build electron:symbols
+          npx e init release -i release --root=electron --fork xltan/electron --force
+
+      - name: Cache electron 2
+        id: cache-electron-2
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
+
+      - name: Cache electron 1
+        id: cache-electron-1
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+
+      - name: Test
+        working-directory: electron
+        run: |
+          timeout 1s touch 456 || true
+          ls
+      # - name: Build
+      #   run: |
+      #     timeout 4h npx e build electron:symbols || true
+
+  build3:
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-latest
+            name: "darwin-x64"
+          # - host: windows-latest
+          #   name: "win32-ia32"
+
+    name: stable - ${{ matrix.settings.name }} - node@16
+    needs:
+      - build2
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install build-tools
+        run: npm install
+
+      - uses: sinoru/actions-setup-xcode@v2
+        with:
+          xcode-version: "12.4"
+
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --fork xltan/electron --force
+
+      - name: Cache electron 2
+        id: cache-electron-2
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
+
+      - name: Test
+        working-directory: electron
+        run: ls
+      # - name: Build
+      #   run: |
+      #     npx e build electron:symbols
