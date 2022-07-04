@@ -44,12 +44,12 @@ jobs:
         run: |
           npx e init release -i release --root=electron --fork xltan/electron --force
 
-      # - name: Cache electron-src
-      #   id: cache-electron-src
-      #   uses: actions/cache@v2
-      #   with:
-      #     path: electron
-      #     key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
+      - name: Cache electron-src
+        id: cache-electron-src
+        uses: actions/cache@v2
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
 
       - uses: actions/checkout@v3
         with:
@@ -63,10 +63,10 @@ jobs:
         run: |
           git cherry-pick origin/custom-electron
 
-      # - name: Sync
-      #   run: |
-      #     npx e sync
+      - name: Sync
+        run: |
+          npx e sync
 
-      # - name: Build
-      #   run: |
-      #     npx e build electron:symbols
+      - name: Build
+        run: |
+          npx e build electron:symbols
