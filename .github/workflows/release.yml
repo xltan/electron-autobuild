@@ -57,14 +57,14 @@ jobs:
           path: electron/src/electron
           ref: v16.2.3
 
-      - name: Sync
-        run: |
-          npx e sync
-
       - name: Checking directory
         working-directory: electron/src/electron
         run: |
-          git status
+          git checkout v18.2.3
+
+      # - name: Sync
+      #   run: |
+      #     npx e sync
 
       - name: Build
         run: |
