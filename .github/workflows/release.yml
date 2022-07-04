@@ -44,18 +44,18 @@ jobs:
         run: |
           npx e init release -i release --root=electron --fork xltan/electron --force
 
-      # - name: Cache electron-src
-      #   id: cache-electron-src
-      #   uses: actions/cache@v2
-      #   with:
-      #     path: electron
-      #     key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
+      - name: Cache electron-src
+        id: cache-electron-src
+        uses: actions/cache@v2
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron
 
       - uses: actions/checkout@v3
         with:
           repository: xltan/electron
           path: electron/src/electron
-          ref: v18.2.3
+          ref: v18.3.5
           fetch-depth: 0
 
       - name: Apply patches

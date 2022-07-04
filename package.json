@@ -1,5 +1,6 @@
 {
   "dependencies": {
     "build-tools": "./build-tools"
-  }
+  },
+  "version": "18.3.5"
 }
