@@ -187,7 +187,7 @@ jobs:
       - name: angle
         working-directory: electron/src/third_party
         run: |
-          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout $hash
+          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
 
       - name: Build
         run: |
