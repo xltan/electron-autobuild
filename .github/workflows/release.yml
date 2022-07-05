@@ -59,7 +59,7 @@ jobs:
         if: steps.cache-electron.outputs.cache-hit != 'true'
         working-directory: electron/src/electron
         run: |
-          git cherry-pick $(git merge-base main origin/custom-electron)..origin/custom-electron
+          git cherry-pick $(git merge-base origin/main origin/custom-electron)..origin/custom-electron
 
       - name: Sync
         if: steps.cache-electron.outputs.cache-hit != 'true'
