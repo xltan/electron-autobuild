@@ -4,138 +4,7 @@ on:
   push:
 
 jobs:
-  # build1:
-  #   strategy:
-  #     fail-fast: true
-  #     matrix:
-  #       settings:
-  #         - host: macos-latest
-  #           name: "darwin-x64"
-  #         # - host: windows-latest
-  #         #   name: "win32-ia32"
-
-  #   name: stable - ${{ matrix.settings.name }} - node@16
-  #   runs-on: ${{ matrix.settings.host }}
-  #   defaults:
-  #     run:
-  #       shell: bash
-
-  #   steps:
-  #     - uses: actions/checkout@v3
-
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         repository: xltan/build-tools
-  #         path: build-tools
-
-  #     - name: Setup node
-  #       uses: actions/setup-node@v3
-  #       with:
-  #         node-version: 16
-
-  #     - name: Install build-tools
-  #       run: npm install
-
-  #     - uses: sinoru/actions-setup-xcode@v2
-  #       with:
-  #         xcode-version: "12.4"
-
-  #     - name: Init
-  #       run: |
-  #         npx e init release -i release --root=electron --fork xltan/electron --force
-
-  #     - name: Cache electron
-  #       id: cache-electron
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: electron
-  #         key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
-
-  #     - uses: actions/checkout@v3
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       with:
-  #         repository: xltan/electron
-  #         path: electron/src/electron
-  #         ref: v18.3.5
-  #         fetch-depth: 0
-
-  #     - name: Apply patches
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       working-directory: electron/src/electron
-  #       run: |
-  #         git cherry-pick $(git merge-base main origin/custom-electron)..origin/custom-electron
-
-  #     - name: Sync
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       run: |
-  #         npx e sync
-
-  #     - name: Build
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       run: |
-  #         npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
-
-  # build2:
-  #   strategy:
-  #     fail-fast: true
-  #     matrix:
-  #       settings:
-  #         - host: macos-latest
-  #           name: "darwin-x64"
-  #         # - host: windows-latest
-  #         #   name: "win32-ia32"
-
-  #   name: stable - ${{ matrix.settings.name }} - node@16
-  #   needs:
-  #     - build1
-  #   runs-on: ${{ matrix.settings.host }}
-  #   defaults:
-  #     run:
-  #       shell: bash
-
-  #   steps:
-  #     - uses: actions/checkout@v3
-
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         repository: xltan/build-tools
-  #         path: build-tools
-
-  #     - name: Setup node
-  #       uses: actions/setup-node@v3
-  #       with:
-  #         node-version: 16
-
-  #     - name: Install build-tools
-  #       run: npm install
-
-  #     - uses: sinoru/actions-setup-xcode@v2
-  #       with:
-  #         xcode-version: "12.4"
-
-  #     - name: Init
-  #       run: |
-  #         npx e init release -i release --root=electron --fork xltan/electron --force
-
-  #     - name: Cache electron 2
-  #       id: cache-electron-2
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: electron
-  #         key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
-
-  #     - name: Cache electron 1
-  #       id: cache-electron-1
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: electron
-  #         key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
-
-  #     - name: Build
-  #       run: |
-  #         npx e build electron:symbols & pid=$! ; sleep 14400 && kill $pid || true
-
-  build3:
+  build1:
     strategy:
       fail-fast: true
       matrix:
@@ -146,8 +15,6 @@ jobs:
           #   name: "win32-ia32"
 
     name: stable - ${{ matrix.settings.name }} - node@16
-    # needs:
-    #   - build2
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
@@ -169,9 +36,79 @@ jobs:
       - name: Install build-tools
         run: npm install
 
-      - uses: sinoru/actions-setup-xcode@v2
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --fork xltan/electron --force
+
+      - name: Cache electron
+        id: cache-electron
+        uses: actions/cache@v3
         with:
-          xcode-version: "12.4"
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+
+      - uses: actions/checkout@v3
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: v18.3.5
+          fetch-depth: 0
+
+      - name: Apply patches
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src/electron
+        run: |
+          git cherry-pick $(git merge-base main origin/custom-electron)..origin/custom-electron
+
+      - name: Sync
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e sync
+
+      - name: angle
+        working-directory: electron/src/third_party
+        run: |
+          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
+
+      - name: Build
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e build electron:symbols & pid=$! ; sleep 16000 && kill $pid || true
+
+  build2:
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-latest
+            name: "darwin-x64"
+          # - host: windows-latest
+          #   name: "win32-ia32"
+
+    name: stable - ${{ matrix.settings.name }} - node@16
+    needs:
+      - build1
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install build-tools
+        run: npm install
 
       - name: Init
         run: |
@@ -184,10 +121,61 @@ jobs:
           path: electron
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
 
-      - name: angle
-        working-directory: electron/src/third_party
+      - name: Cache electron 1
+        id: cache-electron-1
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+
+      - name: Build
         run: |
-          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
+          npx e build electron:symbols & pid=$! ; sleep 16000 && kill $pid || true
+
+  build3:
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-latest
+            name: "darwin-x64"
+          # - host: windows-latest
+          #   name: "win32-ia32"
+
+    name: stable - ${{ matrix.settings.name }} - node@16
+    needs:
+      - build2
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install build-tools
+        run: npm install
+
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --fork xltan/electron --force
+
+      - name: Cache electron 2
+        id: cache-electron-2
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
 
       - name: Build
         run: |
