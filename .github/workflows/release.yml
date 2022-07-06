@@ -38,7 +38,7 @@ jobs:
 
       - name: Init
         run: |
-          npx e init release -i release --root=electron --fork xltan/electron --force
+          npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
       - name: Cache electron
         id: cache-electron
