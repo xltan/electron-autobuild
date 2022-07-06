@@ -4,78 +4,84 @@ on:
   push:
 
 jobs:
-  # build1:
-  #   strategy:
-  #     fail-fast: true
-  #     matrix:
-  #       settings:
-  #         - host: macos-latest
-  #           name: "darwin-x64"
-  #         # - host: windows-latest
-  #         #   name: "win32-ia32"
+  build1:
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-latest
+            name: "darwin-x64"
+          # - host: windows-latest
+          #   name: "win32-ia32"
 
-  #   name: stable - ${{ matrix.settings.name }} - node@16
-  #   runs-on: ${{ matrix.settings.host }}
-  #   defaults:
-  #     run:
-  #       shell: bash
+    name: stable - ${{ matrix.settings.name }} - node@16
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        shell: bash
 
-  #   steps:
-  #     - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         repository: xltan/build-tools
-  #         path: build-tools
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
 
-  #     - name: Setup node
-  #       uses: actions/setup-node@v3
-  #       with:
-  #         node-version: 16
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
-  #     - name: Install build-tools
-  #       run: npm install
+      - name: Install build-tools
+        run: npm install
 
-  #     - name: Init
-  #       run: |
-  #         npx e init release -i release --root=electron --goma none --fork xltan/electron --force
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
-  #     - name: Cache electron
-  #       id: cache-electron
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: electron
-  #         key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+      - name: Cache electron
+        id: cache-electron
+        uses: actions/cache@v3
+        with:
+          path: electron
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
 
-  #     - uses: actions/checkout@v3
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       with:
-  #         repository: xltan/electron
-  #         path: electron/src/electron
-  #         ref: v18.3.5
-  #         fetch-depth: 0
+      - uses: actions/checkout@v3
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: v18.3.5
+          fetch-depth: 0
 
-  #     - name: Apply patches
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       working-directory: electron/src/electron
-  #       run: |
-  #         git cherry-pick $(git merge-base origin/main origin/custom-electron)..origin/custom-electron
+      - name: Apply patches
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src/electron
+        run: |
+          git cherry-pick $(git merge-base origin/main origin/custom-electron)..origin/custom-electron
 
-  #     - name: Sync
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       run: |
-  #         npx e sync
+      - name: Sync
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e sync
 
-  #     - name: angle
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       working-directory: electron/src/third_party
-  #       run: |
-  #         hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
+      - name: Remove unused .git
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src
+        run: |
+          ( find . -type d -name ".git" -not -path "./third_party/angle/*" -not -path "./third_party/dawn/*" ) | xargs rm -rf
 
-  #     - name: Build
-  #       if: steps.cache-electron.outputs.cache-hit != 'true'
-  #       run: |
-  #         npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
+      - name: angle
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src/third_party
+        run: |
+          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
+
+      - name: Build
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        run: |
+          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
 
   build2:
     strategy:
@@ -88,8 +94,8 @@ jobs:
           #   name: "win32-ia32"
 
     name: stable - ${{ matrix.settings.name }} - node@16
-    # needs:
-    #   - build1
+    needs:
+      - build1
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
