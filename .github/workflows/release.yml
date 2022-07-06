@@ -74,7 +74,7 @@ jobs:
       - name: Build
         if: steps.cache-electron.outputs.cache-hit != 'true'
         run: |
-          npx e build electron:symbols & pid=$! ; sleep 16000 && kill $pid || true
+          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
 
   build2:
     strategy:
@@ -130,7 +130,7 @@ jobs:
 
       - name: Build
         run: |
-          npx e build electron:symbols & pid=$! ; sleep 16000 && kill $pid || true
+          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
 
   build3:
     strategy:
@@ -179,4 +179,4 @@ jobs:
 
       - name: Build
         run: |
-          npx e build electron:symbols
+          npx e build electron:symbols --no-goma -j 6
