@@ -76,7 +76,7 @@ jobs:
   #       if: steps.cache-electron.outputs.cache-hit != 'true'
   #       working-directory: electron/src/third_party
   #       run: |
-  #         hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout a4f71e40e571a8768f8fe2dbdc35678bcb9e6783
+  #         hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle
 
   #     - name: Build
   #       if: steps.cache-electron.outputs.cache-hit != 'true'
@@ -121,19 +121,19 @@ jobs:
         run: |
           npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
-      - name: Cache electron 2
-        id: cache-electron-2
-        uses: actions/cache@v3
-        with:
-          path: electron
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
-
       - name: Cache electron
         id: cache-electron-1
         uses: actions/cache@v3
         with:
           path: electron
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-1
+
+      - name: Cache electron 2
+        id: cache-electron-2
+        uses: actions/cache@v3
+        with:
+          path: electron/src/out
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
 
       - name: Build
         run: |
@@ -177,11 +177,39 @@ jobs:
         run: |
           npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: v18.3.5
+          fetch-depth: 0
+
+      - name: Apply patches
+        working-directory: electron/src/electron
+        run: |
+          git cherry-pick $(git merge-base origin/main origin/custom-electron)..origin/custom-electron
+
+      - name: Sync
+        run: |
+          npx e sync
+
+      - name: Remove unused .git
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src
+        run: |
+          ( find . -type d -name ".git" -not -path "./third_party/angle/*" -not -path "./third_party/dawn/*" ) | xargs rm -rf
+
+      - name: angle
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        working-directory: electron/src/third_party
+        run: |
+          hash=$(cd angle; git rev-parse HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle
+
       - name: Cache electron
         id: cache-electron
         uses: actions/cache@v3
         with:
-          path: electron
+          path: electron/src/out
           key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-2
 
       - name: Build
