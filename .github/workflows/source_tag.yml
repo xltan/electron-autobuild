@@ -1,0 +1,55 @@
+name: Source Tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    name: archive source
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Init
+        run: |
+          npx e init release -i release --root=electron --goma none --fork xltan/electron --force
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: ${GITHUB_REF##*/}
+          fetch-depth: 0
+
+      - name: Apply patches
+        working-directory: electron/src/electron
+        run: |
+          git cherry-pick $(git merge-base origin/main origin/custom-electron)..origin/custom-electron
+
+      - name: Sync
+        run: |
+          npx e sync
+
+      - name: Remove unused .git
+        working-directory: electron/src
+        run: |
+          ( find . -type d -name ".git" -not -path "./third_party/angle/*" -not -path "./third_party/dawn/*" ) | xargs rm -rf
+
+      - name: Angle
+        working-directory: electron/src/third_party
+        run: |
+          hash=$(cd angle; git rev-parse ORIG_HEAD); rm -rf angle; git clone https://chromium.googlesource.com/angle/angle; cd angle && git checkout $hash;
+
+      - name: Tar
+        run: |
+          tar -cjf electron.tar.bz2 electron/
+          split -b 1800M electron.tar.bz2 electron.tar.bz2-part-
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            electron.tar.bz2-part-*
