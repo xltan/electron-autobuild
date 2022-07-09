@@ -66,7 +66,7 @@ jobs:
       - name: Tar
         run: |
           tar -cjf electron.tar.bz2 electron/
-          split -b 1800M electron.tar.bz2 electron.tar.bz2-part-
+          split -b 1800m electron.tar.bz2 electron.tar.bz2-part-
 
       - name: Release
         uses: softprops/action-gh-release@v1
