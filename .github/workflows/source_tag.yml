@@ -29,6 +29,8 @@ jobs:
 
       - name: Init
         run: |
+          git config --global user.email "release@duolingo.com"
+          git config --global user.name "duolingo"
           npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
       - name: Get tag
