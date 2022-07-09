@@ -12,6 +12,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: ${{GITHUB_REF##*/}}
+          fetch-depth: 0
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -35,7 +42,7 @@ jobs:
         with:
           repository: xltan/electron
           path: electron/src/electron
-          ref: ${GITHUB_REF##*/}
+          ref: ${{GITHUB_REF##*/}}
           fetch-depth: 0
 
       - name: Apply patches
