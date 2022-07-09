@@ -12,17 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get tag
-        id: tag
-        uses: dawidd6/action-get-tag@v1
-
-      - uses: actions/checkout@v3
-        with:
-          repository: xltan/electron
-          path: electron/src/electron
-          ref: ${{steps.tag.outputs.tag}}
-          fetch-depth: 0
-
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -42,12 +31,16 @@ jobs:
         run: |
           npx e init release -i release --root=electron --goma none --fork xltan/electron --force
 
-      # - uses: actions/checkout@v3
-      #   with:
-      #     repository: xltan/electron
-      #     path: electron/src/electron
-      #     ref: ${{GITHUB_REF##*/}}
-      #     fetch-depth: 0
+      - name: Get tag
+        id: tag
+        uses: dawidd6/action-get-tag@v1
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/electron
+          path: electron/src/electron
+          ref: ${{steps.tag.outputs.tag}}
+          fetch-depth: 0
 
       - name: Apply patches
         working-directory: electron/src/electron
