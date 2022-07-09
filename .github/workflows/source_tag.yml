@@ -11,6 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - uses: actions/checkout@v3
+        with:
+          repository: xltan/build-tools
+          path: build-tools
+
+      - name: Install build-tools
+        run: npm install
+
       - name: Init
         run: |
           npx e init release -i release --root=electron --goma none --fork xltan/electron --force
