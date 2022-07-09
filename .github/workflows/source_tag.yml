@@ -12,11 +12,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get tag
+        id: tag
+        uses: dawidd6/action-get-tag@v1
+
       - uses: actions/checkout@v3
         with:
           repository: xltan/electron
           path: electron/src/electron
-          ref: ${{GITHUB_REF##*/}}
+          ref: ${{steps.tag.outputs.tag}}
           fetch-depth: 0
 
       - name: Setup node
