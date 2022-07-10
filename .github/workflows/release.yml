@@ -21,6 +21,8 @@ jobs:
         shell: bash
 
     steps:
+      - run: brew install coreutils
+
       - uses: actions/checkout@v3
 
       - uses: actions/checkout@v3
@@ -63,13 +65,13 @@ jobs:
         with:
           path: |
             electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.timestamp } }
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.time } }
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
       - name: Build
         run: |
-          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
+          gtimeout 16000s npx e build electron:symbols --no-goma -j 6 || true
 
   build2:
     strategy:
@@ -90,6 +92,8 @@ jobs:
         shell: bash
 
     steps:
+      - run: brew install coreutils
+
       - uses: actions/checkout@v3
 
       - uses: actions/checkout@v3
@@ -132,13 +136,13 @@ jobs:
         with:
           path: |
             electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.timestamp } }
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.time } }
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
       - name: Build
         run: |
-          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
+          gtimeout 16000s npx e build electron:symbols --no-goma -j 6 || true
 
   build3:
     strategy:
@@ -207,4 +211,4 @@ jobs:
 
       - name: Build
         run: |
-          npx e build electron:symbols --no-goma -j 6 & pid=$! ; sleep 16000 && kill $pid || true
+          npx e build electron:symbols --no-goma -j 6
