@@ -65,7 +65,7 @@ jobs:
         with:
           path: |
             electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.time } }
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${{ steps.cache_timestamp.outputs.time }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
@@ -136,7 +136,7 @@ jobs:
         with:
           path: |
             electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.time } }
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${{ steps.cache_timestamp.outputs.time }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
@@ -205,7 +205,7 @@ jobs:
         with:
           path: |
             electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${ { steps.cache_timestamp.outputs.time } }
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${{ steps.cache_timestamp.outputs.time }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
