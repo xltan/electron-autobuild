@@ -9,10 +9,12 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          # - host: macos-latest
-          #   name: "darwin"
+          - host: macos-latest
+            name: "darwin"
+            prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
+            prepare: git config --global core.filemode false
 
     name: ${{ matrix.settings.name }}
     runs-on: ${{ matrix.settings.host }}
@@ -21,8 +23,7 @@ jobs:
         shell: bash
 
     steps:
-      - if: matrix.settings.name == 'darwin'
-        run: brew install coreutils
+      - run: ${{ matrix.settings.prepare }}
 
       - uses: actions/checkout@v3
 
@@ -79,10 +80,12 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          # - host: macos-latest
-          #   name: "darwin"
+          - host: macos-latest
+            name: "darwin"
+            prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
+            prepare: git config --global core.filemode false
 
     name: ${{ matrix.settings.name }}
     needs:
@@ -93,8 +96,7 @@ jobs:
         shell: bash
 
     steps:
-      - if: matrix.settings.name == 'darwin'
-        run: brew install coreutils
+      - run: ${{ matrix.settings.prepare }}
 
       - uses: actions/checkout@v3
 
@@ -151,10 +153,12 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          # - host: macos-latest
-          #   name: "darwin"
+          - host: macos-latest
+            name: "darwin"
+            prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
+            prepare: git config --global core.filemode false
 
     name: ${{ matrix.settings.name }}
     needs:
@@ -165,6 +169,8 @@ jobs:
         shell: bash
 
     steps:
+      - run: ${{ matrix.settings.prepare }}
+
       - uses: actions/checkout@v3
 
       - uses: actions/checkout@v3
