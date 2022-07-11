@@ -71,7 +71,7 @@ jobs:
 
       - name: Build
         run: |
-          gtimeout 16000s npx e build electron:symbols --no-goma -j 6 || true
+          gtimeout 12000s npx e build electron:symbols --no-goma -j 6 || true
 
   build2:
     strategy:
@@ -140,75 +140,79 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
 
-      - name: Build
-        run: |
-          gtimeout 16000s npx e build electron:symbols --no-goma -j 6 || true
-
-  build3:
-    strategy:
-      fail-fast: true
-      matrix:
-        settings:
-          - host: macos-latest
-            name: "darwin-x64"
-          # - host: windows-latest
-          #   name: "win32-ia32"
-
-    name: stable - ${{ matrix.settings.name }} - node@16
-    needs:
-      - build2
-    runs-on: ${{ matrix.settings.host }}
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/checkout@v3
-        with:
-          repository: xltan/build-tools
-          path: build-tools
-
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16
-
-      - name: Install build-tools
-        run: npm install
-
-      - name: Init
-        run: |
-          npx e init release -i release --root=electron --goma none --fork xltan/electron --force
-
-      - uses: robinraju/release-downloader@v1.4
-        with:
-          repository: "xltan/electron-autobuild"
-          tag: "v18.3.5"
-          fileName: "electron.tar.bz2-part-*"
-
-      - name: electron src
-        run: |
-          cat electron.tar.bz2-part-* | tar -jx
-          rm electron.tar.bz2-part-*
-
-      - name: Get cache timestamp
-        id: cache_timestamp
-        uses: nanzm/get-time-action@v1.1
-        with:
-          format: "MM-DD-HH-mm-ss"
-
-      - name: Cache electron out
-        id: cache-electron-out
-        uses: actions/cache@v3
-        with:
-          path: |
-            electron/src/out
-          key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${{ steps.cache_timestamp.outputs.time }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
+      # - name: Build
+      #   run: |
+      #     gtimeout 16000s npx e build electron:symbols --no-goma -j 6 || true
 
       - name: Build
         run: |
           npx e build electron:symbols --no-goma -j 6
+
+  # build3:
+  #   strategy:
+  #     fail-fast: true
+  #     matrix:
+  #       settings:
+  #         - host: macos-latest
+  #           name: "darwin-x64"
+  #         # - host: windows-latest
+  #         #   name: "win32-ia32"
+
+  #   name: stable - ${{ matrix.settings.name }} - node@16
+  #   needs:
+  #     - build2
+  #   runs-on: ${{ matrix.settings.host }}
+  #   defaults:
+  #     run:
+  #       shell: bash
+
+  #   steps:
+  #     - uses: actions/checkout@v3
+
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         repository: xltan/build-tools
+  #         path: build-tools
+
+  #     - name: Setup node
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: 16
+
+  #     - name: Install build-tools
+  #       run: npm install
+
+  #     - name: Init
+  #       run: |
+  #         npx e init release -i release --root=electron --goma none --fork xltan/electron --force
+
+  #     - uses: robinraju/release-downloader@v1.4
+  #       with:
+  #         repository: "xltan/electron-autobuild"
+  #         tag: "v18.3.5"
+  #         fileName: "electron.tar.bz2-part-*"
+
+  #     - name: electron src
+  #       run: |
+  #         cat electron.tar.bz2-part-* | tar -jx
+  #         rm electron.tar.bz2-part-*
+
+  #     - name: Get cache timestamp
+  #       id: cache_timestamp
+  #       uses: nanzm/get-time-action@v1.1
+  #       with:
+  #         format: "MM-DD-HH-mm-ss"
+
+  #     - name: Cache electron out
+  #       id: cache-electron-out
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           electron/src/out
+  #         key: ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-${{ steps.cache_timestamp.outputs.time }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ hashFiles('package.json') }}-electron-out-
+
+  #     - name: Build
+  #       run: |
+  #         npx e build electron:symbols --no-goma -j 6
