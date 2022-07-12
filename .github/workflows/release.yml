@@ -17,6 +17,7 @@ jobs:
             prepare: |
               git config --global core.filemode false
               git config --global core.autocrlf false
+              git config --global branch.autosetuprebase always
 
     name: ${{ matrix.settings.name }}
     runs-on: ${{ matrix.settings.host }}
@@ -90,6 +91,7 @@ jobs:
             prepare: |
               git config --global core.filemode false
               git config --global core.autocrlf false
+              git config --global branch.autosetuprebase always
 
     name: ${{ matrix.settings.name }}
     needs:
@@ -165,6 +167,7 @@ jobs:
             prepare: |
               git config --global core.filemode false
               git config --global core.autocrlf false
+              git config --global branch.autosetuprebase always
 
     name: ${{ matrix.settings.name }}
     needs:
