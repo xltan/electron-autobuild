@@ -2,6 +2,6 @@
   "dependencies": {
     "build-tools": "./build-tools"
   },
-  "hash": "3",
+  "hash": "4",
   "version": "18.3.5"
 }
