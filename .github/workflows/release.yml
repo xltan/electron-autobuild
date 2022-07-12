@@ -9,12 +9,14 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          - host: macos-latest
-            name: "darwin"
-            prepare: brew install coreutils
+          # - host: macos-latest
+          #   name: "darwin"
+          #   prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
-            prepare: git config --global core.filemode false
+            prepare: |
+              git config --global core.filemode false
+              git config --global core.autocrlf false
 
     name: ${{ matrix.settings.name }}
     runs-on: ${{ matrix.settings.host }}
@@ -80,12 +82,14 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          - host: macos-latest
-            name: "darwin"
-            prepare: brew install coreutils
+          # - host: macos-latest
+          #   name: "darwin"
+          #   prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
-            prepare: git config --global core.filemode false
+            prepare: |
+              git config --global core.filemode false
+              git config --global core.autocrlf false
 
     name: ${{ matrix.settings.name }}
     needs:
@@ -153,12 +157,14 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          - host: macos-latest
-            name: "darwin"
-            prepare: brew install coreutils
+          # - host: macos-latest
+          #   name: "darwin"
+          #   prepare: brew install coreutils
           - host: windows-latest
             name: "win32"
-            prepare: git config --global core.filemode false
+            prepare: |
+              git config --global core.filemode false
+              git config --global core.autocrlf false
 
     name: ${{ matrix.settings.name }}
     needs:
