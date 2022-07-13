@@ -70,7 +70,7 @@ jobs:
 
       - name: Build
         run: |
-          timeout 14000s npx e build electron --no-goma -j 6 || true
+          timeout 18000s npx e build electron --no-goma -j 6 || true
 
   build2:
     strategy:
@@ -140,7 +140,7 @@ jobs:
 
       - name: Build
         run: |
-          timeout 14000s npx e build electron --no-goma -j 6 || true
+          timeout 18000s npx e build electron --no-goma -j 6 || true
 
   build3:
     strategy:
