@@ -94,9 +94,32 @@ jobs:
 
           gclient.bat config --name src/electron --unmanaged --custom-var=checkout_pgo_profiles=False https://github.com/electron/electron
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          gclient.bat sync --no-history --jobs=4
+          gclient.bat sync --no-history --jobs=4 --nohooks
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host ('Free after source sync: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB))
+
+      - name: Apply Electron patches and run dependency hooks
+        shell: pwsh
+        env:
+          ELECTRON_USE_THREE_WAY_MERGE_FOR_PATCHES: '1'
+        run: |
+          Set-Location $env:ELECTRON_BUILD_ROOT
+          $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
+
+          # Electron v32.3.3's OSR backport uses a blob outside the shallow Chromium checkout.
+          $blob = 'dad9598799a670b3cfb14965bc8a7b4ea3b4f95f'
+          $response = Invoke-RestMethod -Uri "https://api.github.com/repos/chromium/chromium/git/blobs/$blob"
+          $preimage = Join-Path $env:ELECTRON_BUILD_ROOT 'video-capture-oracle.preimage'
+          [IO.File]::WriteAllBytes($preimage, [Convert]::FromBase64String($response.content))
+          $storedBlob = git -C src hash-object -w --no-filters $preimage
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($storedBlob -ne $blob) {
+            throw "Unexpected Chromium patch base hash: $storedBlob"
+          }
+
+          gclient.bat runhooks
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host ('Free after dependency hooks: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB))
 
       - name: Build the Windows x64 distribution
         shell: pwsh
