@@ -83,6 +83,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git -C depot_tools checkout --detach FETCH_HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The pinned depot_tools expects bundled Git on Windows. Use the runner's Git.
+          $gitCache = Get-Content -LiteralPath depot_tools/git_cache.py -Raw
+          $gitCache.Replace("'git.bat' if", "'git.exe' if") |
+            Set-Content -LiteralPath depot_tools/git_cache.py -Encoding utf8NoBOM -NoNewline
           $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
 
           gclient.bat config --name src/electron --unmanaged --custom-var=checkout_pgo_profiles=False https://github.com/electron/electron
