@@ -1,0 +1,252 @@
+name: Electron 32.3.3 Windows build job
+
+on:
+  workflow_call:
+    inputs:
+      checkpoint-after-minutes:
+        description: Compilation time before saving a checkpoint, or zero to finish
+        type: number
+        default: 0
+      checkpoint-key:
+        description: Cache key from the previous job
+        type: string
+        default: ''
+    outputs:
+      checkpoint-key:
+        description: Cache key to resume an interrupted compile
+        value: ${{ jobs.build.outputs.checkpoint-key }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 360
+    outputs:
+      checkpoint-key: ${{ steps.compile.outputs.checkpoint-key }}
+    env:
+      ELECTRON_BUILD_ROOT: C:\electron-build
+      DEPOT_TOOLS_WIN_TOOLCHAIN: '0'
+      DEPOT_TOOLS_UPDATE: '0'
+      GIT_TERMINAL_PROMPT: '0'
+      SCCACHE_DIR: C:\electron-sccache
+      SCCACHE_CACHE_SIZE: 8G
+      SCCACHE_IDLE_TIMEOUT: '0'
+
+    steps:
+      - name: Free disk space
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+            throw 'This cleanup is only for a disposable GitHub-hosted runner.'
+          }
+
+          $before = (Get-PSDrive C).Free
+          $paths = @(
+            'C:\Android',
+            'C:\Miniconda',
+            'C:\msys64',
+            'C:\vcpkg',
+            'C:\Program Files\Java',
+            'C:\Program Files\Microsoft SQL Server',
+            'C:\Program Files (x86)\Microsoft SQL Server'
+          )
+          foreach ($path in $paths) {
+            if (Test-Path -LiteralPath $path) {
+              Write-Host "Removing $path"
+              try {
+                Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+              } catch {
+                Write-Warning "Cleanup of $path was incomplete: $_"
+              }
+            }
+          }
+
+          $after = (Get-PSDrive C).Free
+          $diskSummary = 'C: free disk went from {0:N1} to {1:N1} GiB ({2:N1} GiB reclaimed).' -f ($before / 1GB), ($after / 1GB), (($after - $before) / 1GB)
+          Write-Host $diskSummary
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $diskSummary
+          if ($after -lt 100GB) {
+            Write-Warning 'Less than 100 GiB is free. The source build may run out of disk space.'
+          }
+
+      - name: Restore compiler checkpoint
+        if: inputs.checkpoint-key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:/electron-sccache
+          key: ${{ inputs.checkpoint-key }}
+          fail-on-cache-miss: true
+
+      - name: Install sccache
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'sccache.zip'
+          $release = 'sccache-v0.19.0-x86_64-pc-windows-msvc'
+          Invoke-WebRequest -Uri "https://github.com/mozilla/sccache/releases/download/v0.19.0/$release.zip" -OutFile $archive
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+          if ($digest -ne '28be8c61f6b2c89b9eb2869f6af7f78e6f992e78a8abae0ce855fcc129cbeac1') {
+            throw "Unexpected sccache archive hash: $digest"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $env:RUNNER_TEMP $release)
+
+      - name: Sync Electron and Chromium sources
+        shell: pwsh
+        run: |
+          # Keep Electron's patch files and Chromium's sources in LF form.
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global user.name 'electron-autobuild'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global user.email 'actions@users.noreply.github.com'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          New-Item -ItemType Directory -Path $env:ELECTRON_BUILD_ROOT | Out-Null
+          Set-Location $env:ELECTRON_BUILD_ROOT
+          git clone --branch v32.3.3 --depth 1 https://github.com/electron/electron.git src/electron
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $electronCommit = git -C src/electron rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($electronCommit -ne 'b6bca84d71aaba3b50d7ed00b3e6565f3e31657f') {
+            throw "Unexpected Electron v32.3.3 commit: $electronCommit"
+          }
+
+          git init depot_tools
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C depot_tools fetch --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git 31e21628c3a558d4f2189712e25849d608b3ff8c
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C depot_tools checkout --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The pinned depot_tools expects bundled Git on Windows. Use the runner's Git.
+          $gitCache = Get-Content -LiteralPath depot_tools/git_cache.py -Raw
+          $gitCache.Replace("'git.bat' if", "'git.exe' if") |
+            Set-Content -LiteralPath depot_tools/git_cache.py -Encoding utf8NoBOM -NoNewline
+          $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
+
+          gclient.bat config --name src/electron --unmanaged --custom-var=checkout_pgo_profiles=False https://github.com/electron/electron
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gclient.bat sync --no-history --jobs=4 --nohooks
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host ('Free after source sync: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB))
+
+      - name: Apply Electron patches and run dependency hooks
+        shell: pwsh
+        env:
+          ELECTRON_USE_THREE_WAY_MERGE_FOR_PATCHES: '1'
+        run: |
+          Set-Location $env:ELECTRON_BUILD_ROOT
+          $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
+
+          # Electron v32.3.3's OSR backport uses a blob outside the shallow Chromium checkout.
+          $blob = 'dad9598799a670b3cfb14965bc8a7b4ea3b4f95f'
+          $response = Invoke-RestMethod -Uri "https://api.github.com/repos/chromium/chromium/git/blobs/$blob"
+          $preimage = Join-Path $env:ELECTRON_BUILD_ROOT 'video-capture-oracle.preimage'
+          [IO.File]::WriteAllBytes($preimage, [Convert]::FromBase64String($response.content))
+          $storedBlob = git -C src hash-object -w --no-filters $preimage
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($storedBlob -ne $blob) {
+            throw "Unexpected Chromium patch base hash: $storedBlob"
+          }
+
+          gclient.bat runhooks
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host ('Free after dependency hooks: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB))
+
+      - name: Build the Windows x64 distribution
+        id: compile
+        shell: pwsh
+        env:
+          CHECKPOINT_AFTER_MINUTES: ${{ inputs.checkpoint-after-minutes }}
+        run: |
+          $ninja = (Get-Command ninja.exe -CommandType Application).Source
+          $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
+          Set-Location "$env:ELECTRON_BUILD_ROOT\src"
+          $env:CHROMIUM_BUILDTOOLS_PATH = "$env:ELECTRON_BUILD_ROOT\src\buildtools"
+          New-Item -ItemType Directory -Path out/Release -Force | Out-Null
+          @'
+          import("//electron/build/args/release.gn")
+          target_cpu = "x64"
+          cc_wrapper = "sccache.exe"
+          chrome_pgo_phase = 0
+          symbol_level = 0
+          blink_symbol_level = 0
+          v8_symbol_level = 0
+          '@ | Set-Content -Path out/Release/args.gn -Encoding ascii
+          & .\buildtools\win\gn.exe gen out/Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Start separately so stopping Ninja and its children leaves the cache server running.
+          sccache --start-server
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value 'cache-started=true'
+          $compile = Start-Process -FilePath $ninja -ArgumentList '-C', 'out/Release', 'electron:electron_dist_zip' -NoNewWindow -PassThru
+          $budget = [int]$env:CHECKPOINT_AFTER_MINUTES
+
+          if ($budget -gt 0 -and -not $compile.WaitForExit($budget * 60000)) {
+            Write-Host "Stopping Ninja after $budget minutes to save compiler output."
+            taskkill.exe /PID $compile.Id /T /F
+            if ($LASTEXITCODE -eq 0) {
+              $compile.WaitForExit()
+              $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
+              exit 0
+            }
+            # Ninja may have finished just as the checkpoint timer expired.
+            $compile.Refresh()
+            if (-not $compile.HasExited) {
+              throw "Could not stop Ninja for the checkpoint."
+            }
+          }
+
+          $compile.WaitForExit()
+          if ($compile.ExitCode -ne 0) { exit $compile.ExitCode }
+
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $version = & .\out\Release\electron.exe -p 'process.versions.electron + " " + process.arch'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($version -ne '32.3.3 x64') {
+            throw "Unexpected Electron version or architecture: $version"
+          }
+          Move-Item -LiteralPath out/Release/dist.zip -Destination "$env:ELECTRON_BUILD_ROOT\electron-v32.3.3-win32-x64.zip"
+          Get-FileHash -Algorithm SHA256 "$env:ELECTRON_BUILD_ROOT\electron-v32.3.3-win32-x64.zip"
+
+      - name: Report compiler cache and stop the server
+        if: always() && steps.compile.outputs.cache-started == 'true'
+        shell: pwsh
+        run: |
+          sccache --show-stats
+          sccache --stop-server
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check that the compiler cache has entries
+        if: steps.compile.outputs.checkpoint-key != ''
+        shell: pwsh
+        run: |
+          if (-not (Get-ChildItem -LiteralPath $env:SCCACHE_DIR -Recurse -File | Select-Object -First 1)) {
+            throw 'The compiler checkpoint is empty.'
+          }
+
+      - name: Save compiler checkpoint
+        if: steps.compile.outputs.checkpoint-key != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:/electron-sccache
+          key: ${{ steps.compile.outputs.checkpoint-key }}
+
+      - name: Report remaining build disk
+        if: always()
+        shell: pwsh
+        run: |
+          $diskSummary = 'C: free disk at end of run: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB)
+          Write-Host $diskSummary
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $diskSummary
+
+      - name: Upload Electron ZIP
+        if: steps.compile.outputs.checkpoint-key == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: electron-v32.3.3-win32-x64
+          path: C:/electron-build/electron-v32.3.3-win32-x64.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
