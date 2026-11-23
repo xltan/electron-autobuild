@@ -3,10 +3,10 @@ name: Electron 32.3.3 Windows build job
 on:
   workflow_call:
     inputs:
-      checkpoint-after-minutes:
-        description: Compilation time before saving a checkpoint, or zero to finish
-        type: number
-        default: 0
+      final-pass:
+        description: Require a finished ZIP after saving any remaining checkpoint
+        type: boolean
+        default: false
       checkpoint-key:
         description: Cache key from the previous job
         type: string
@@ -157,7 +157,7 @@ jobs:
         id: compile
         shell: pwsh
         env:
-          CHECKPOINT_AFTER_MINUTES: ${{ inputs.checkpoint-after-minutes }}
+          CHECKPOINT_SUFFIX: ${{ inputs.final-pass && 'second' || 'first' }}
         run: |
           $ninja = (Get-Command ninja.exe -CommandType Application).Source
           $env:PATH = "$env:ELECTRON_BUILD_ROOT\depot_tools;$env:PATH"
@@ -180,14 +180,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Content -Path $env:GITHUB_OUTPUT -Value 'cache-started=true'
           $compile = Start-Process -FilePath $ninja -ArgumentList '-C', 'out/Release', 'electron:electron_dist_zip' -NoNewWindow -PassThru
-          $budget = [int]$env:CHECKPOINT_AFTER_MINUTES
+          # Leave about 45 minutes for the checkpoint upload after the usual source setup.
+          $budget = 285
 
-          if ($budget -gt 0 -and -not $compile.WaitForExit($budget * 60000)) {
+          if (-not $compile.WaitForExit($budget * 60000)) {
             Write-Host "Stopping Ninja after $budget minutes to save compiler output."
             taskkill.exe /PID $compile.Id /T /F
             if ($LASTEXITCODE -eq 0) {
               $compile.WaitForExit()
-              $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+              $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:CHECKPOINT_SUFFIX"
               Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
               exit 0
             }
@@ -233,6 +234,15 @@ jobs:
           path: C:/electron-sccache
           key: ${{ steps.compile.outputs.checkpoint-key }}
 
+      - name: Verify the saved checkpoint
+        if: steps.compile.outputs.checkpoint-key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:/electron-sccache
+          key: ${{ steps.compile.outputs.checkpoint-key }}
+          lookup-only: true
+          fail-on-cache-miss: true
+
       - name: Report remaining build disk
         if: always()
         shell: pwsh
@@ -240,6 +250,16 @@ jobs:
           $diskSummary = 'C: free disk at end of run: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB)
           Write-Host $diskSummary
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $diskSummary
+
+      - name: Report that another pass is needed
+        if: inputs.final-pass && steps.compile.outputs.checkpoint-key != ''
+        shell: pwsh
+        env:
+          RESUME_CHECKPOINT_KEY: ${{ steps.compile.outputs.checkpoint-key }}
+        run: |
+          $message = "The compiler checkpoint was saved. Resume with checkpoint-key=$env:RESUME_CHECKPOINT_KEY."
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $message
+          throw $message
 
       - name: Upload Electron ZIP
         if: steps.compile.outputs.checkpoint-key == ''

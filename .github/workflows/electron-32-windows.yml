@@ -2,6 +2,11 @@ name: Build Electron 32.3.3 for Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      checkpoint-key:
+        description: Optional compiler checkpoint from an earlier run
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -15,7 +20,7 @@ jobs:
     name: Build and save compiler output
     uses: ./.github/workflows/electron-32-windows-job.yml
     with:
-      checkpoint-after-minutes: 255
+      checkpoint-key: ${{ inputs.checkpoint-key }}
 
   second:
     name: Finish from compiler checkpoint
@@ -24,3 +29,4 @@ jobs:
     uses: ./.github/workflows/electron-32-windows-job.yml
     with:
       checkpoint-key: ${{ needs.first.outputs.checkpoint-key }}
+      final-pass: true
