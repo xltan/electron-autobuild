@@ -186,17 +186,14 @@ jobs:
           if (-not $compile.WaitForExit($budget * 60000)) {
             Write-Host "Stopping Ninja after $budget minutes to save compiler output."
             taskkill.exe /PID $compile.Id /T /F
-            if ($LASTEXITCODE -eq 0) {
-              $compile.WaitForExit()
-              $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:CHECKPOINT_SUFFIX"
-              Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
-              exit 0
+            $shutdownExitCode = $LASTEXITCODE
+            # taskkill can report a child-process error even after stopping Ninja.
+            if (-not $compile.WaitForExit(30000)) {
+              throw "Ninja did not exit after the checkpoint stop (taskkill exit code $shutdownExitCode)."
             }
-            # Ninja may have finished just as the checkpoint timer expired.
-            $compile.Refresh()
-            if (-not $compile.HasExited) {
-              throw "Could not stop Ninja for the checkpoint."
-            }
+            $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:CHECKPOINT_SUFFIX"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
+            exit 0
           }
 
           $compile.WaitForExit()
