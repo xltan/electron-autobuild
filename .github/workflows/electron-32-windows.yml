@@ -1,32 +1,81 @@
-name: Build Electron 32.3.3 for Windows
+name: Windows checkpoint regression test
 
 on:
   workflow_dispatch:
-    inputs:
-      checkpoint-key:
-        description: Optional compiler checkpoint from an earlier run
-        type: string
-        default: ''
 
-permissions:
-  contents: read
-
-concurrency:
-  group: electron-32-windows-experiment
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
-  first:
-    name: Build and save compiler output
-    uses: ./.github/workflows/electron-32-windows-job.yml
-    with:
-      checkpoint-key: ${{ inputs.checkpoint-key }}
+  checkpoint:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    env:
+      CHECKPOINT_SUFFIX: fixture
+    steps:
+      - name: Simulate a partial taskkill failure after the deadline
+        id: planned
+        shell: pwsh
+        run: |
+          $budget = 0.05
+          $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
+          $compile = Start-Process -FilePath $cmd -ArgumentList '/d', '/c', 'ping -n 25 127.0.0.1 >NUL' -NoNewWindow -PassThru
+          function taskkill.exe {
+            & (Join-Path $env:SystemRoot 'System32\taskkill.exe') @args
+            $global:LASTEXITCODE = 1
+            Write-Host "Simulated taskkill exit code $LASTEXITCODE"
+          }
+          if (-not $compile.WaitForExit(3000)) {
+            Write-Host "Stopping Ninja after $budget minutes to save compiler output."
+            taskkill.exe /PID $compile.Id /T /F
+            $shutdownExitCode = $LASTEXITCODE
+            # taskkill can report a child-process error even after stopping Ninja.
+            if (-not $compile.WaitForExit(30000)) {
+              throw "Ninja did not exit after the checkpoint stop (taskkill exit code $shutdownExitCode)."
+            }
+            $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:CHECKPOINT_SUFFIX"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
+            exit 0
+          }
 
-  second:
-    name: Finish from compiler checkpoint
-    needs: first
-    if: needs.first.outputs.checkpoint-key != ''
-    uses: ./.github/workflows/electron-32-windows-job.yml
-    with:
-      checkpoint-key: ${{ needs.first.outputs.checkpoint-key }}
-      final-pass: true
+          $compile.WaitForExit()
+          if ($compile.ExitCode -ne 0) { exit $compile.ExitCode }
+
+      - name: Simulate a compiler error before the deadline
+        id: early
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
+          $compile = Start-Process -FilePath $cmd -ArgumentList '/d', '/c', 'exit 7' -NoNewWindow -PassThru
+          if (-not $compile.WaitForExit(3000)) {
+            Write-Host "Stopping Ninja after $budget minutes to save compiler output."
+            taskkill.exe /PID $compile.Id /T /F
+            $shutdownExitCode = $LASTEXITCODE
+            # taskkill can report a child-process error even after stopping Ninja.
+            if (-not $compile.WaitForExit(30000)) {
+              throw "Ninja did not exit after the checkpoint stop (taskkill exit code $shutdownExitCode)."
+            }
+            $checkpoint = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:CHECKPOINT_SUFFIX"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "checkpoint-key=$checkpoint"
+            exit 0
+          }
+
+          $compile.WaitForExit()
+          if ($compile.ExitCode -ne 0) { exit $compile.ExitCode }
+
+      - name: Verify both results
+        if: always()
+        shell: pwsh
+        env:
+          PLANNED_KEY: ${{ steps.planned.outputs.checkpoint-key }}
+          EARLY_KEY: ${{ steps.early.outputs.checkpoint-key }}
+          EARLY_OUTCOME: ${{ steps.early.outcome }}
+        run: |
+          $expected = "electron-32.3.3-win32-x64-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-fixture"
+          if ($env:PLANNED_KEY -ne $expected) {
+            throw 'The timed Ninja shutdown failed to emit a checkpoint key.'
+          }
+          if ($env:EARLY_OUTCOME -ne 'failure' -or $env:EARLY_KEY) {
+            throw 'An early compiler error was incorrectly treated as a checkpoint.'
+          }
+          Write-Host 'The timed shutdown produced a checkpoint; the early compiler error remained a failure.'
