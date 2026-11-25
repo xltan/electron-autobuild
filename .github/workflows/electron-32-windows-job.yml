@@ -199,15 +199,6 @@ jobs:
           $compile.WaitForExit()
           if ($compile.ExitCode -ne 0) { exit $compile.ExitCode }
 
-          $env:ELECTRON_RUN_AS_NODE = '1'
-          $version = & .\out\Release\electron.exe -p 'process.versions.electron + " " + process.arch'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($version -ne '32.3.3 x64') {
-            throw "Unexpected Electron version or architecture: $version"
-          }
-          Move-Item -LiteralPath out/Release/dist.zip -Destination "$env:ELECTRON_BUILD_ROOT\electron-v32.3.3-win32-x64.zip"
-          Get-FileHash -Algorithm SHA256 "$env:ELECTRON_BUILD_ROOT\electron-v32.3.3-win32-x64.zip"
-
       - name: Report compiler cache and stop the server
         if: always() && steps.compile.outputs.cache-started == 'true'
         shell: pwsh
@@ -258,11 +249,52 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $message
           throw $message
 
-      - name: Upload Electron ZIP
+      - name: Stage Electron ZIP
+        id: package
         if: steps.compile.outputs.checkpoint-key == ''
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:ELECTRON_BUILD_ROOT 'electron-v32.3.3-win32-x64.zip'
+          Move-Item -LiteralPath "$env:ELECTRON_BUILD_ROOT\src\out\Release\dist.zip" -Destination $archive
+          Get-FileHash -LiteralPath $archive -Algorithm SHA256
+
+      - name: Verify packaged Electron version and architecture
+        id: verify
+        if: steps.package.outcome == 'success'
+        timeout-minutes: 3
+        shell: pwsh
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: |
+          $archive = Join-Path $env:ELECTRON_BUILD_ROOT 'electron-v32.3.3-win32-x64.zip'
+          $smokeDir = Join-Path $env:RUNNER_TEMP 'electron-version-check'
+          Expand-Archive -LiteralPath $archive -DestinationPath $smokeDir
+          $probe = Join-Path $smokeDir 'check-version.cjs'
+          $env:ELECTRON_VERSION_PROBE_RESULT = Join-Path $smokeDir 'electron-version.txt'
+          # A Windows GUI executable can finish without returning stdout to PowerShell.
+          @'
+          const { writeFileSync } = require('node:fs');
+          writeFileSync(process.env.ELECTRON_VERSION_PROBE_RESULT, `${process.versions.electron} ${process.arch}`);
+          '@ | Set-Content -LiteralPath $probe -Encoding ascii
+          $electron = Start-Process -FilePath (Join-Path $smokeDir 'electron.exe') `
+            -ArgumentList ('"{0}"' -f $probe) -WorkingDirectory $smokeDir -NoNewWindow -Wait -PassThru
+          if ($electron.ExitCode -ne 0) {
+            throw "Electron version probe exited with code $($electron.ExitCode)."
+          }
+          if (-not (Test-Path -LiteralPath $env:ELECTRON_VERSION_PROBE_RESULT -PathType Leaf)) {
+            throw 'Electron exited without writing its version and architecture.'
+          }
+          $version = Get-Content -LiteralPath $env:ELECTRON_VERSION_PROBE_RESULT -Raw
+          if ($version -ne '32.3.3 x64') {
+            throw "Unexpected Electron version or architecture: $version"
+          }
+          Write-Host "Verified Electron $version."
+
+      - name: Upload Electron ZIP
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: electron-v32.3.3-win32-x64
+          name: ${{ steps.verify.outcome == 'success' && 'electron-v32.3.3-win32-x64' || 'electron-v32.3.3-win32-x64-unverified' }}
           path: C:/electron-build/electron-v32.3.3-win32-x64.zip
           if-no-files-found: error
           compression-level: 0
