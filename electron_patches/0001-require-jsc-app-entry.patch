@@ -1,0 +1,149 @@
+diff --git a/lib/browser/init.ts b/lib/browser/init.ts
+index cba94237b76960844ef50aa803b28731c06b53ae..10817d2c22fcbd643ff4aa19a8ac432bfdf0425b 100644
+--- a/lib/browser/init.ts
++++ b/lib/browser/init.ts
+@@ -4,7 +4,6 @@ import { EventEmitter } from 'events';
+ import * as fs from 'fs';
+ import * as path from 'path';
+ 
+-import type * as url from 'url';
+ import type * as v8 from 'v8';
+ 
+ const Module = require('module') as NodeJS.ModuleInternal;
+@@ -98,7 +97,9 @@ if (process.resourcesPath) {
+           continue;
+         }
+       }
+-      packageJson = Module._load(path.join(packagePath, 'package.json'));
++      // Read the exact manifest without CommonJS file or directory fallback.
++      const manifest = fs.readFileSync(path.join(packagePath, 'package.json'), 'utf8');
++      packageJson = JSON.parse(manifest.replace(/^\uFEFF/, ''));
+       break;
+     } catch {
+       continue;
+@@ -156,9 +157,6 @@ require('@electron/internal/browser/api/web-frame-main');
+ // the inheritance needs to be set up before that happens.
+ require('@electron/internal/browser/api/web-contents-view');
+ 
+-// Set main startup script of the app.
+-const mainStartupScript = packageJson.main || 'index.js';
+-
+ const KNOWN_XDG_DESKTOP_VALUES = new Set(['Pantheon', 'Unity:Unity7', 'pop:GNOME']);
+ 
+ function currentPlatformSupportsAppIndicator () {
+@@ -195,29 +193,97 @@ const { setDefaultApplicationMenu } = require('@electron/internal/browser/defaul
+ // menu is set before any user window is created.
+ app.once('will-finish-launching', setDefaultApplicationMenu);
+ 
++function readAppBytecode (appPath: string, main: unknown) {
++  if (typeof main !== 'string' || path.isAbsolute(main) || path.extname(main) !== '.jsc') {
++    throw new Error('package.json main must name a relative .jsc app entry point');
++  }
++
++  const appRoot = fs.realpathSync(appPath);
++  const filename = fs.realpathSync(path.resolve(appRoot, main.replaceAll('{arch}', process.arch)));
++  const relative = path.relative(appRoot, filename);
++  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) ||
++      path.isAbsolute(relative) || path.extname(filename) !== '.jsc' || !fs.statSync(filename).isFile()) {
++    throw new Error('App entry point must resolve to a regular .jsc file inside the app');
++  }
++
++  // DET's uncompressed Bytenode format uses a CommonJS-wrapped V8 script cache.
++  (require('v8') as typeof v8).setFlagsFromString('--no-lazy --no-flush-bytecode');
++  const { Script } = require('vm') as typeof import('vm');
++  const cachedData = fs.readFileSync(filename);
++  const reference = new Script('""').createCachedData();
++  // V8 12.8 SerializedCodeData. Infer alignment from V8 for 32-bit builds.
++  const payloadLengthOffset = 20;
++  const headerSize = reference.length - reference.readUInt32LE(payloadLengthOffset);
++  if (cachedData.length <= headerSize || cachedData.readUInt32LE(0) !== reference.readUInt32LE(0) ||
++      cachedData.readUInt32LE(payloadLengthOffset) !== cachedData.length - headerSize) {
++    throw new Error('App entry point is not an uncompressed V8 bytecode cache');
++  }
++
++  // Bound the synthetic source allocation before using the length from disk.
++  const sourceLength = cachedData.readUInt32LE(8);
++  if (sourceLength < 2 || sourceLength > 64 * 1024 * 1024) {
++    throw new Error('Invalid app bytecode source length');
++  }
++
++  // Match Bytenode 1.5.7: the flags hash can differ between Node and app mode.
++  // Leave V8's version, snapshot and payload checks to the runtime.
++  reference.copy(cachedData, 12, 12, 16);
++  const source = '"' + '\u200b'.repeat(sourceLength - 2) + '"';
++  const script = new Script(source, { filename, cachedData });
++  if (script.cachedDataRejected) {
++    throw new Error('App entry point bytecode is invalid or incompatible with this Electron build');
++  }
++  const compiled = script.runInThisContext();
++  if (typeof compiled !== 'function') {
++    throw new Error('App entry point bytecode must contain a CommonJS module');
++  }
++  return { compiled, filename };
++}
++
++function runAppBytecode ({ compiled, filename }: ReturnType<typeof readAppBytecode>) {
++  const { makeRequireFunction } = __non_webpack_require__('internal/modules/helpers');
++  const entry = new Module(filename, null) as NodeJS.Module & { load(filename: string): void };
++  entry.id = '.';
++  process._firstFileName = filename;
++  process.mainModule = entry;
++  Module._cache[filename] = entry;
++
++  // Module.load sets up Node's CommonJS bookkeeping for this exact filename.
++  // Keep the custom loader scoped to the entry; ordinary imports still use Node.
++  const previousLoader = Module._extensions['.jsc'];
++  const restoreLoader = () => {
++    if (previousLoader) Module._extensions['.jsc'] = previousLoader;
++    else delete Module._extensions['.jsc'];
++  };
++  const loadEntry: typeof previousLoader = (fileModule, entryFilename) => {
++    restoreLoader();
++    compiled.call(fileModule.exports, fileModule.exports, makeRequireFunction(fileModule), fileModule, entryFilename, path.dirname(entryFilename));
++  };
++  Module._extensions['.jsc'] = loadEntry;
++  try {
++    entry.load(filename);
++  } catch (error) {
++    delete Module._cache[filename];
++    throw error;
++  } finally {
++    if (Module._extensions['.jsc'] === loadEntry) restoreLoader();
++  }
++}
++
+ const { appCodeLoaded } = process;
+ delete process.appCodeLoaded;
+ 
+ if (packagePath) {
+-  // Finally load app's main.js and transfer control to C++.
+-  if ((packageJson.type === 'module' && !mainStartupScript.endsWith('.cjs')) || mainStartupScript.endsWith('.mjs')) {
+-    const { runEntryPointWithESMLoader } = __non_webpack_require__('internal/modules/run_main');
+-    const main = (require('url') as typeof url).pathToFileURL(path.join(packagePath, mainStartupScript));
+-    runEntryPointWithESMLoader(async (cascadedLoader: any) => {
+-      try {
+-        await cascadedLoader.import(main.toString(), undefined, Object.create(null));
+-        appCodeLoaded!();
+-      } catch (err) {
+-        appCodeLoaded!();
+-        process.emit('uncaughtException', err as Error);
+-      }
+-    });
+-  } else {
+-    // Call appCodeLoaded before just for safety, it doesn't matter here as _load is syncronous
+-    appCodeLoaded!();
+-    process._firstFileName = Module._resolveFilename(path.join(packagePath, mainStartupScript), null, false);
+-    Module._load(path.join(packagePath, mainStartupScript), Module, true);
++  // Transfer control to C++ before running the synchronous app entry point.
++  appCodeLoaded!();
++  let bytecode: ReturnType<typeof readAppBytecode>;
++  try {
++    bytecode = readAppBytecode(packagePath, packageJson.main);
++  } catch (error) {
++    process.nextTick(() => process.exit(1));
++    throw error;
+   }
++  runAppBytecode(bytecode);
+ } else {
+   console.error('Failed to locate a valid package to load (app, app.asar or default_app.asar)');
+   console.error('This normally means you\'ve damaged the Electron package somehow');

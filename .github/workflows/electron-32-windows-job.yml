@@ -153,6 +153,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host ('Free after dependency hooks: {0:N1} GiB.' -f ((Get-PSDrive C).Free / 1GB))
 
+      - name: Check out the experiment patch and smoke app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Apply the bytecode entry patch
+        shell: pwsh
+        run: |
+          $electronSource = Join-Path $env:ELECTRON_BUILD_ROOT 'src/electron'
+          $patch = Join-Path $env:GITHUB_WORKSPACE 'electron_patches/0001-require-jsc-app-entry.patch'
+          git -C $electronSource apply --check $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $electronSource apply $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build the Windows x64 distribution
         id: compile
         shell: pwsh
@@ -290,11 +305,20 @@ jobs:
           }
           Write-Host "Verified Electron $version."
 
+      - name: Smoke test bytecode-only app startup
+        id: entry-smoke
+        if: steps.verify.outcome == 'success'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $electron = Join-Path $env:RUNNER_TEMP 'electron-version-check/electron.exe'
+          & "$env:GITHUB_WORKSPACE/smoke-app/verify-entrypoints.ps1" -Electron $electron
+
       - name: Upload Electron ZIP
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ steps.verify.outcome == 'success' && 'electron-v32.3.3-win32-x64' || 'electron-v32.3.3-win32-x64-unverified' }}
+          name: ${{ steps.entry-smoke.outcome == 'success' && 'electron-v32.3.3-win32-x64' || 'electron-v32.3.3-win32-x64-unverified' }}
           path: C:/electron-build/electron-v32.3.3-win32-x64.zip
           if-no-files-found: error
           compression-level: 0
