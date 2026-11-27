@@ -1,0 +1,74 @@
+diff --git a/src/api/api.cc b/src/api/api.cc
+index f8d3c5aa1231f4b62a614bc0c705366d922b4c75..ac0bf29590b151052d3e980487e12c1b5c9bf449 100644
+--- a/src/api/api.cc
++++ b/src/api/api.cc
+@@ -2850,7 +2850,7 @@ MaybeLocal<Module> ScriptCompiler::CompileModule(
+ 
+ uint32_t ScriptCompiler::CachedDataVersionTag() {
+   return static_cast<uint32_t>(base::hash_combine(
+-      internal::Version::Hash(), internal::FlagList::Hash(),
++      internal::SerializedCodeData::VersionHash(), internal::FlagList::Hash(),
+       static_cast<uint32_t>(internal::CpuFeatures::SupportedFeatures())));
+ }
+ 
+diff --git a/src/interpreter/bytecodes.h b/src/interpreter/bytecodes.h
+index 714bd39c31156db951761917b7a31b4a61c950c5..c9188878931a9d33fa03001dc6340daee2c18de1 100644
+--- a/src/interpreter/bytecodes.h
++++ b/src/interpreter/bytecodes.h
+@@ -72,8 +72,8 @@ namespace interpreter {
+   V(Ldar, ImplicitRegisterUse::kWriteAccumulator, OperandType::kReg)           \
+   V(LdaZero, ImplicitRegisterUse::kWriteAccumulator)                           \
+   V(LdaSmi, ImplicitRegisterUse::kWriteAccumulator, OperandType::kImm)         \
+-  V(LdaUndefined, ImplicitRegisterUse::kWriteAccumulator)                      \
+   V(LdaNull, ImplicitRegisterUse::kWriteAccumulator)                           \
++  V(LdaUndefined, ImplicitRegisterUse::kWriteAccumulator)                      \
+   V(LdaTheHole, ImplicitRegisterUse::kWriteAccumulator)                        \
+   V(LdaTrue, ImplicitRegisterUse::kWriteAccumulator)                           \
+   V(LdaFalse, ImplicitRegisterUse::kWriteAccumulator)                          \
+diff --git a/src/snapshot/code-serializer.cc b/src/snapshot/code-serializer.cc
+index 04b71a59ca94e7f3de9b05fb76d1b9bc29d6458f..e48bbdb9489057ac9ba2f66ff91099f2e6ce93af 100644
+--- a/src/snapshot/code-serializer.cc
++++ b/src/snapshot/code-serializer.cc
+@@ -677,7 +677,7 @@ SerializedCodeData::SerializedCodeData(const std::vector<uint8_t>* payload,
+ 
+   // Set header values.
+   SetMagicNumber();
+-  SetHeaderValue(kVersionHashOffset, Version::Hash());
++  SetHeaderValue(kVersionHashOffset, VersionHash());
+   SetHeaderValue(kSourceHashOffset, cs->source_hash());
+   SetHeaderValue(kFlagHashOffset, FlagList::Hash());
+   SetHeaderValue(kReadOnlySnapshotChecksumOffset,
+@@ -724,7 +724,7 @@ SerializedCodeSanityCheckResult SerializedCodeData::SanityCheckWithoutSource(
+     return SerializedCodeSanityCheckResult::kMagicNumberMismatch;
+   }
+   uint32_t version_hash = GetHeaderValue(kVersionHashOffset);
+-  if (version_hash != Version::Hash()) {
++  if (version_hash != VersionHash()) {
+     return SerializedCodeSanityCheckResult::kVersionMismatch;
+   }
+   uint32_t flags_hash = GetHeaderValue(kFlagHashOffset);
+@@ -750,6 +750,12 @@ SerializedCodeSanityCheckResult SerializedCodeData::SanityCheckWithoutSource(
+   return SerializedCodeSanityCheckResult::kSuccess;
+ }
+ 
++uint32_t SerializedCodeData::VersionHash() {
++  // Bump this value whenever the Ignition opcode layout changes.
++  constexpr uint32_t kOpcodeLayoutVersion = 0x4a534301u;
++  return Version::Hash() ^ kOpcodeLayoutVersion;
++}
++
+ uint32_t SerializedCodeData::SourceHash(DirectHandle<String> source,
+                                         ScriptOriginOptions origin_options) {
+   const uint32_t source_length = source->length();
+diff --git a/src/snapshot/code-serializer.h b/src/snapshot/code-serializer.h
+index 892e0b290e39de96080ffaf9f8a2fe71a8316b70..1c28b004fb80717c24aaf6bc9181b8115904a4a0 100644
+--- a/src/snapshot/code-serializer.h
++++ b/src/snapshot/code-serializer.h
+@@ -152,6 +152,7 @@ class SerializedCodeData : public SerializedData {
+ 
+   base::Vector<const uint8_t> Payload() const;
+ 
++  static uint32_t VersionHash();
+   static uint32_t SourceHash(DirectHandle<String> source,
+                              ScriptOriginOptions origin_options);
+ 

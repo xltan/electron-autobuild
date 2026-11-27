@@ -168,6 +168,16 @@ jobs:
           git -C $electronSource apply $patch
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Apply the V8 Ignition opcode patch
+        shell: pwsh
+        run: |
+          $v8Source = Join-Path $env:ELECTRON_BUILD_ROOT 'src/v8'
+          $patch = Join-Path $env:GITHUB_WORKSPACE 'electron_patches/0002-change-v8-ignition-opcodes.patch'
+          git -C $v8Source apply --check $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $v8Source apply $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build the Windows x64 distribution
         id: compile
         shell: pwsh
@@ -305,14 +315,23 @@ jobs:
           }
           Write-Host "Verified Electron $version."
 
-      - name: Smoke test bytecode-only app startup
+      - name: Smoke test modified and stock Electron bytecode
         id: entry-smoke
         if: steps.verify.outcome == 'success'
         timeout-minutes: 5
         shell: pwsh
         run: |
           $electron = Join-Path $env:RUNNER_TEMP 'electron-version-check/electron.exe'
-          & "$env:GITHUB_WORKSPACE/smoke-app/verify-entrypoints.ps1" -Electron $electron
+          $stockZip = Join-Path $env:RUNNER_TEMP 'stock-electron.zip'
+          $stockDir = Join-Path $env:RUNNER_TEMP 'stock-electron'
+          Invoke-WebRequest -Uri 'https://github.com/electron/electron/releases/download/v32.3.3/electron-v32.3.3-win32-x64.zip' -OutFile $stockZip
+          $stockHash = (Get-FileHash -LiteralPath $stockZip -Algorithm SHA256).Hash
+          if ($stockHash -ne '8fb1d3647eb17f7eecaa8e1711ff1f2febdf7dd3eb89af76a32a258618727e13') {
+            throw "Unexpected stock Electron SHA-256: $stockHash"
+          }
+          Expand-Archive -LiteralPath $stockZip -DestinationPath $stockDir
+          $stockElectron = Join-Path $stockDir 'electron.exe'
+          & "$env:GITHUB_WORKSPACE/smoke-app/verify-entrypoints.ps1" -Electron $electron -StockElectron $stockElectron
 
       - name: Upload Electron ZIP
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
